@@ -29,7 +29,8 @@
 /* Progress follows the page; section movement follows the visitor's scroll. */
 .reading-progress{position:fixed;top:0;left:0;width:100%;height:3px;z-index:20;pointer-events:none}
 .reading-progress-bar{height:100%;width:100%;background:#a7f3b3;transform:scaleX(0);transform-origin:left center}
-.service{will-change:transform}
+.service{position:relative;will-change:transform}
+.service::after{content:"";position:absolute;bottom:-1px;left:0;width:100%;height:3px;background:#a7f3b3;transform:scaleX(var(--row-progress,0));transform-origin:left center;pointer-events:none}
 .circuit .blueprint-art:after{transform:translateY(-30px) rotate(var(--scroll-turn, 0deg))}
 </style>
 </head>
@@ -68,7 +69,11 @@ document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',(
       var rect = rows[i].getBoundingClientRect();
       // Follow the row throughout its passage across the screen, in both directions.
       var amount = Math.max(0, Math.min(1, (viewport - rect.top) / (viewport + rect.height)));
-      rows[i].style.transform = 'translateX(' + (12 - amount * 24) + 'px)';
+      var sideways = window.innerWidth < 760 ? 12 : 24;
+      var offsetX = sideways * (1 - 2 * amount);
+      var offsetY = 48 * (1 - 2 * amount);
+      rows[i].style.transform = 'translate3d(' + offsetX + 'px,' + offsetY + 'px,0)';
+      rows[i].style.setProperty('--row-progress', amount);
     }
   }
   function scheduleUpdate() {
