@@ -65,9 +65,10 @@ document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',(
     if (progressBar) progressBar.style.transform = 'scaleX(' + (maxScroll ? Math.min(1, scrollY / maxScroll) : 1) + ')';
     if (diagram) diagram.style.setProperty('--scroll-turn', Math.min(scrollY * 0.18, 180) + 'deg');
     for (var i = 0; i < rows.length; i++) {
-      var top = rows[i].getBoundingClientRect().top;
-      var amount = Math.max(0, Math.min(1, (viewport - top) / (viewport * 0.45)));
-      rows[i].style.transform = 'translateX(' + ((1 - amount) * 16) + 'px)';
+      var rect = rows[i].getBoundingClientRect();
+      // Follow the row throughout its passage across the screen, in both directions.
+      var amount = Math.max(0, Math.min(1, (viewport - rect.top) / (viewport + rect.height)));
+      rows[i].style.transform = 'translateX(' + (12 - amount * 24) + 'px)';
     }
   }
   function scheduleUpdate() {
