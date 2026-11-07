@@ -26,14 +26,15 @@
 .circuit .blueprint-art span{bottom:14px}
 @media(max-width:760px){.circuit .blueprint-art{height:340px}}
 
-/* Subtle motion as content enters the viewport. Content stays visible if scripts or motion are disabled. */
-@media (prefers-reduced-motion: no-preference){
-  .scroll-enter{animation:section-enter 600ms cubic-bezier(.2,.7,.2,1) both}
-  @keyframes section-enter{from{opacity:.55;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
-}
+/* Progress follows the page; section movement follows the visitor's scroll. */
+.reading-progress{position:fixed;top:0;left:0;width:100%;height:3px;z-index:20;pointer-events:none}
+.reading-progress-bar{height:100%;width:100%;background:#a7f3b3;transform:scaleX(0);transform-origin:left center}
+.service{will-change:transform}
+.circuit .blueprint-art:after{transform:translateY(-30px) rotate(var(--scroll-turn, 0deg))}
 </style>
 </head>
 <body>
+<div class="reading-progress" aria-hidden="true"><div class="reading-progress-bar"></div></div>
 <main id="site"></main>
 <script>
 const telegram='https://t.me/BOCKPECHOE';
@@ -50,17 +51,35 @@ Object.assign(views, {
 });
 function render(name){const v=views[name];const heroText=`<div><div class="eyebrow"><span class="dot"></span>${v.eyebrow}</div><h1>${v.title}</h1>${name==='editorial'?'':`<p>${v.intro}</p><a class="primary" href="${telegram}" target="_blank" rel="noopener noreferrer">Обсудить проект <span aria-hidden="true">↗</span></a>`}</div>`;document.getElementById('site').innerHTML=`<div class="design ${v.className}"><div class="wrap"><header class="nav"><a class="brand" href="#top" aria-label="На главную">${v.brand}</a><nav class="navlinks" aria-label="Навигация"><a href="#services">Что я делаю</a></nav></header><section class="hero" id="top">${heroText}${name==='mono'?'':v.art||`<div class="hero-bottom"><p>${v.intro}</p><a class="primary" href="${telegram}" target="_blank" rel="noopener noreferrer">Обсудить проект ↗</a></div>`}</section><div class="strip" aria-label="Направления"><span>Сайты и сервисы</span><span>Боты и автоматизация</span><span>Развитие продуктов</span><span>Веб-приложения</span></div><section class="section" id="services"><div class="section-head"><div class="eyebrow"><span class="dot"></span> Чем могу помочь</div><h2>${v.section}</h2></div><div class="services"><div class="service"><span>01 /</span><h3>Сайты и веб-сервисы</h3><p>Разрабатываю сайты и онлайн-сервисы с вниманием к удобству посетителей и задачам проекта.</p></div><div class="service"><span>02 /</span><h3>Боты и автоматизация</h3><p>Инструменты, которые помогают сократить рутинные действия и связать сервисы между собой.</p></div><div class="service"><span>03 /</span><h3>Доработка и развитие</h3><p>Новые функции, улучшение существующего продукта и поиск решений для нестандартных задач.</p></div><div class="service"><span>04 /</span><h3>Веб-приложения</h3><p>Интерактивные приложения для работы с данными, управления процессами и решения повседневных задач.</p></div></div></section></div><section class="contact" id="contact"><div class="wrap"><div class="eyebrow"><span class="dot"></span> Есть идея?</div><h2>Давайте создадим<br>что-то полезное.</h2><p>Расскажите о вашей задаче в Telegram.</p><a class="primary" href="${telegram}" target="_blank" rel="noopener noreferrer">@BOCKPECHOE <span aria-hidden="true">↗</span></a></div></section><footer class="wrap foot"><span>Разработка цифровых продуктов</span><span>На связи в Telegram · @BOCKPECHOE</span></footer></div>`;document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===name)));}
 document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>render(b.dataset.view)));render('circuit');
-if ('IntersectionObserver' in window && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-  const observer = new IntersectionObserver((entries, current) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add('scroll-enter');
-        current.unobserve(entry.target);
-      }
-    });
-  }, {threshold: 0.12});
-  document.querySelectorAll('.section-head, .service, .contact .wrap').forEach(element => observer.observe(element));
-}
+// Keep content visible even if JavaScript or browser animation support is unavailable.
+(function () {
+  var rows = document.querySelectorAll('.service');
+  var progressBar = document.querySelector('.reading-progress-bar');
+  var diagram = document.querySelector('.circuit .blueprint-art');
+  var scheduled = false;
+  function updateScrollEffects() {
+    scheduled = false;
+    var viewport = window.innerHeight || document.documentElement.clientHeight;
+    var maxScroll = Math.max(0, document.documentElement.scrollHeight - viewport);
+    var scrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
+    if (progressBar) progressBar.style.transform = 'scaleX(' + (maxScroll ? Math.min(1, scrollY / maxScroll) : 1) + ')';
+    if (diagram) diagram.style.setProperty('--scroll-turn', Math.min(scrollY * 0.18, 180) + 'deg');
+    for (var i = 0; i < rows.length; i++) {
+      var top = rows[i].getBoundingClientRect().top;
+      var amount = Math.max(0, Math.min(1, (viewport - top) / (viewport * 0.45)));
+      rows[i].style.transform = 'translateX(' + ((1 - amount) * 16) + 'px)';
+    }
+  }
+  function scheduleUpdate() {
+    if (scheduled) return;
+    scheduled = true;
+    if (window.requestAnimationFrame) window.requestAnimationFrame(updateScrollEffects);
+    else setTimeout(updateScrollEffects, 16);
+  }
+  window.addEventListener('scroll', scheduleUpdate, false);
+  window.addEventListener('resize', scheduleUpdate, false);
+  updateScrollEffects();
+})();
 
 </script>
 </body></html>
