@@ -70,3 +70,10 @@ h1,h2{letter-spacing:-.055em;font-weight:600}
 @media(max-width:360px){.hero h1{font-size:36px}.hero-description{font-size:14px}.site-header nav a{font-size:10px;gap:5px}.site-header nav a>span{font-size:7px}.model-label{font-size:7px}.task-card{flex-basis:96%;padding:20px}.task-card h2{font-size:25px}.contact-paper h2{font-size:29px}.telegram-link{font-size:24px}.process-step h2{font-size:26px}.model-legend{font-size:8px}.hero .eyebrow{font-size:9px}}
 @media(prefers-reduced-motion:reduce){.system-model .model-layer,.signal{animation:none!important}}
 .contact-hero .contact-paper .paper-ps{color:var(--muted);font-size:12px}
+.brand-mark{letter-spacing:-.08em}
+.mini-custom{width:80%;padding:18px 22px;border:1px solid #4e858a;background:#162b34;transform:rotate(-3deg);transition:transform .8s var(--ease)}
+.mini-custom>span,.mini-custom>div{font:9px/1.7 monospace;color:#b5cbd5}
+.mini-custom strong{display:block;font-size:88px;line-height:1.25;font-weight:400;color:var(--rust);text-align:center}
+.task-card.is-current .mini-custom{transform:rotate(2deg)}
+.custom-contact{display:flex;align-items:center;justify-content:space-between;gap:20px;min-height:48px;padding:12px 0;border-top:1px solid #4e858a;color:var(--rust);font-size:13px;font-weight:600}
+.custom-contact svg{width:20px;transition:transform .2s}.custom-contact:hover svg{transform:translateX(4px)}
