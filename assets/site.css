@@ -161,3 +161,5 @@ h1 em,.faq h2 em{color:#9ecbc9}
 @media(max-width:360px){.page-home .hero{padding-block:40px}.page-home .workbench{right:-255px;top:9px;opacity:.38}}
 
 .site-footer .motion-toggle{margin-inline-start:auto}
+
+.page-approach .site-footer{border-top:0}
