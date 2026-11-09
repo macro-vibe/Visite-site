@@ -124,3 +124,38 @@ h1 em,.faq h2 em{color:#9ecbc9}
   .card-details{padding-top:16px;gap:16px}
 }
 @media(max-width:360px){.task-card{flex-basis:96%;padding:18px}.task-card h2{font-size:23px}}
+
+/* Home: one composition, with the architecture integrated into the background. */
+.page-home{min-height:100vh;min-height:100svh;display:flex;flex-direction:column}
+.page-home .site-header,.page-home .site-footer{flex-shrink:0}
+.page-home main{flex:1;display:flex;overflow:hidden;isolation:isolate}
+.page-home .hero{display:flex;align-items:center;min-height:600px;padding-block:80px;isolation:isolate}
+.page-home .hero-copy{max-width:560px;z-index:1}
+.page-home .workbench{
+  position:absolute;z-index:-1;pointer-events:none;
+  width:min(76vw,980px);max-width:none;height:auto;aspect-ratio:640/570;
+  right:-13%;top:50%;margin:0;transform:translateY(-50%);opacity:.56;
+  -webkit-mask-image:linear-gradient(90deg,transparent 0%,#000 34%,#000 78%,transparent 100%);
+  mask-image:linear-gradient(90deg,transparent 0%,#000 34%,#000 78%,transparent 100%);
+}
+.page-home .system-model{margin:0}
+.page-home .hero-description{max-width:430px}
+.page-home .intro-note{border:0;padding-top:0;margin-top:30px;max-width:410px}
+.page-home .intro-note p{color:var(--muted);font-size:12px}
+.page-home .site-footer{min-height:76px;gap:20px;justify-content:space-between}
+@media(max-width:1100px){.page-home .workbench{right:-22%;width:82vw;opacity:.46}}
+@media(max-width:800px){.page-home .hero{min-height:540px;padding-block:65px}.page-home .workbench{right:-33%;width:90vw;opacity:.38}}
+@media(max-width:600px){
+  .page-home .hero{min-height:0;padding-block:56px;align-items:center}
+  .page-home .hero-copy{width:100%;max-width:440px}
+  .page-home .workbench{
+    width:400px;right:-245px;top:24px;transform:rotate(-12deg);opacity:.44;
+    -webkit-mask-image:linear-gradient(90deg,transparent 2%,#000 38%,#000 80%,transparent 100%);
+    mask-image:linear-gradient(90deg,transparent 2%,#000 38%,#000 80%,transparent 100%);
+  }
+  .page-home .hero-description{max-width:355px;margin-bottom:0}
+  .page-home .intro-note{margin-top:26px}
+  .page-home .intro-note p{font-size:12px;line-height:1.8}
+  .page-home .site-footer{min-height:72px;flex-wrap:nowrap}
+}
+@media(max-width:360px){.page-home .hero{padding-block:40px}.page-home .workbench{right:-255px;top:9px;opacity:.38}}
