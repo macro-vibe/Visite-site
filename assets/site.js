@@ -23,12 +23,13 @@
   applyMotion();
 
   function initContent() {
+    const scope = document.querySelector('main#main');
     const controller = new AbortController();
     const signal = controller.signal;
     const observers = [];
     let frame = 0;
     const listen = (target, type, fn, options = {}) => target.addEventListener(type, fn, { ...options, signal });
-    document.querySelectorAll('[data-carousel]').forEach(carousel => {
+    scope.querySelectorAll('[data-carousel]').forEach(carousel => {
       const track = carousel.querySelector('.card-track');
       const cards = Array.from(track.querySelectorAll('.task-card'));
       const slides = cards.map(card => card.closest('.card-slide') || card);
@@ -76,9 +77,9 @@
       observers.push(observer);
       update();
     });
-    const bench = document.querySelector('.workbench');
-    const steps = Array.from(document.querySelectorAll('.process-step'));
-    const links = Array.from(document.querySelectorAll('.process-map a'));
+    const bench = scope.querySelector('.workbench');
+    const steps = Array.from(scope.querySelectorAll('.process-step'));
+    const links = Array.from(scope.querySelectorAll('.process-map a'));
     const update = () => {
       frame = 0;
       if (bench) {
@@ -169,6 +170,80 @@
     if (id === 'main') { anchor.tabIndex = -1; anchor.focus({ preventScroll: true }); }
   }
 
+  // Animate two clipped viewport-sized surfaces, never a full-height page.
+  // Menus and controls stay outside the moving surfaces.
+  function captureViewport() {
+    const source = document.querySelector('main#main');
+    const rect = source.getBoundingClientRect();
+    const panel = document.createElement('div');
+    panel.className = `route-panel ${document.body.className}`;
+    const clone = source.cloneNode(true);
+    clone.removeAttribute('id');
+    clone.removeAttribute('tabindex');
+    const computed = getComputedStyle(source);
+    Object.assign(clone.style, {
+      position: 'absolute', top: `${rect.top}px`, left: `${rect.left}px`,
+      width: `${rect.width}px`, height: `${rect.height}px`, margin: '0',
+      display: computed.display, flexDirection: computed.flexDirection,
+      minHeight: '0', flex: 'none', overflow: computed.overflow,
+      transform: 'none', opacity: '1'
+    });
+    const animated = source.querySelectorAll('.model-layer,.signal');
+    clone.querySelectorAll('.model-layer,.signal').forEach((el, i) => {
+      el.style.transform = getComputedStyle(animated[i]).transform;
+      el.style.animation = 'none';
+    });
+    const scrollPositions = Array.from(source.querySelectorAll('.card-track')).map(el => el.scrollLeft);
+    panel.append(clone);
+    return { panel, restore() {
+      clone.querySelectorAll('.card-track').forEach((el, i) => {
+        el.style.scrollBehavior = 'auto';
+        el.scrollLeft = scrollPositions[i];
+      });
+    } };
+  }
+
+  async function slidePage(swap, direction) {
+    const layer = document.createElement('div');
+    layer.className = 'route-transition';
+    layer.setAttribute('aria-hidden', 'true');
+    layer.inert = true;
+    const old = captureViewport();
+    layer.append(old.panel);
+    document.body.append(layer);
+    old.restore();
+    let animations = [];
+    let incoming;
+    const finishEarly = () => { if (reduced.matches) animations.forEach(animation => animation.finish()); };
+    try {
+      swap();
+      if (reduced.matches) return;
+      incoming = captureViewport();
+      incoming.panel.style.transform = `translate3d(${direction * 100}%,0,0)`;
+      layer.append(incoming.panel);
+      incoming.restore();
+      // Let the browser prepare both bounded layers before starting movement.
+      await new Promise(resolve => requestAnimationFrame(resolve));
+      const timing = { duration: 440, easing: 'cubic-bezier(.32,.72,0,1)', fill: 'both' };
+      animations = [
+        old.panel.animate([
+          { transform: 'translate3d(0,0,0)' },
+          { transform: `translate3d(${-direction * 100}%,0,0)` }
+        ], timing),
+        incoming.panel.animate([
+          { transform: `translate3d(${direction * 100}%,0,0)` },
+          { transform: 'translate3d(0,0,0)' }
+        ], timing)
+      ];
+      reduced.addEventListener('change', finishEarly);
+      await Promise.all(animations.map(animation => animation.finished.catch(() => {})));
+    } finally {
+      reduced.removeEventListener('change', finishEarly);
+      layer.remove();
+      animations.forEach(animation => animation.cancel());
+    }
+  }
+
   async function navigate(url, { pop = false, scroll = null } = {}) {
     const target = pageIndex(url);
     if (target < 0) return;
@@ -188,11 +263,10 @@
     }
 
     if (!pop) history.replaceState({ ...history.state, scroll: { x: scrollX, y: scrollY } }, '', location.href);
-    const swap = (hidden = false) => {
+    const swap = () => {
       content.destroy();
       const main = document.importNode(next.querySelector('main#main'), true);
       main.tabIndex = -1;
-      if (hidden) main.style.opacity = '0';
       document.querySelector('main#main').replaceWith(main);
       document.body.className = next.body.className;
       document.title = next.title;
@@ -210,23 +284,7 @@
     };
     try {
       if (reduced.matches) swap();
-      else {
-        const outgoing = document.querySelector('main').animate(
-          [{ opacity: 1 }, { opacity: 0 }],
-          { duration: 140, easing: 'ease-in-out', fill: 'forwards' }
-        );
-        await outgoing.finished.catch(() => {});
-        const main = swap(!reduced.matches);
-        outgoing.cancel();
-        if (!reduced.matches) {
-          const incoming = main.animate(
-            [{ opacity: 0 }, { opacity: 1 }],
-            { duration: 280, easing: 'cubic-bezier(.2,.6,.3,1)', fill: 'both' }
-          );
-          try { await incoming.finished.catch(() => {}); }
-          finally { main.style.removeProperty('opacity'); incoming.cancel(); }
-        } else main.style.removeProperty('opacity');
-      }
+      else await slidePage(swap, target > current ? 1 : -1);
     } finally {
       root.classList.remove('page-loading');
       busy = false;
