@@ -101,3 +101,26 @@ h1 em,.faq h2 em{color:#9ecbc9}
   .process-step h2,.contact-paper h2,.faq h2{font-size:26px}
 }
 @media(max-width:360px){.hero h1{font-size:31px}.process-step h2{font-size:24px}}
+
+/* Compact service cards: keep readable copy and reduce decorative space. */
+.card-track{gap:20px}
+.task-card{flex-basis:calc((100% - 40px)/2.2);padding:22px}
+.card-art{height:170px;margin-block:16px}
+.card-art>:not(.art-caption){scale:.8}
+.art-caption{bottom:7px}
+.task-card h2{font-size:27px;margin-bottom:14px;line-height:1.2}
+.task-card>p{font-size:14px;line-height:1.65;margin-bottom:18px}
+.card-details{padding-top:18px;gap:17px}
+.card-details h3{margin-bottom:8px}
+.card-details p{font-size:13px;line-height:1.65}
+@media(max-width:1100px){.task-card{flex-basis:calc((100% - 20px)/2)}}
+@media(max-width:800px){.task-card{padding:19px}.task-card h2{font-size:24px}}
+@media(max-width:600px){
+  .card-track{gap:14px}
+  .task-card{flex-basis:94%;padding:19px}
+  .card-art{height:158px;margin-block:14px}
+  .card-art>:not(.art-caption){scale:.73}
+  .task-card h2{font-size:24px}
+  .card-details{padding-top:16px;gap:16px}
+}
+@media(max-width:360px){.task-card{flex-basis:96%;padding:18px}.task-card h2{font-size:23px}}
