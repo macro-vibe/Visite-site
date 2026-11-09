@@ -2,22 +2,11 @@
   'use strict';
   const root = document.documentElement;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
-  const pages = [
-    { file: 'index.html', name: 'Главная', cls: 'page-home' },
-    { file: 'services.html', name: 'Услуги', cls: 'page-services' },
-    { file: 'approach.html', name: 'Процесс', cls: 'page-approach' },
-    { file: 'contact.html', name: 'Контакт', cls: 'page-contact' }
-  ];
-  const base = new URL('./', location.href);
-  const pageIndex = url => pages.findIndex(p => new URL(p.file, base).pathname === (url.pathname.endsWith('/') ? url.pathname + 'index.html' : url.pathname));
-  let current = pageIndex(new URL(location.href));
-  let busy = false;
   let content;
   const applyMotion = () => {
     root.classList.toggle('motion-paused', reduced.matches);
     content?.refresh();
   };
-  // The removed manual control must not leave returning visitors stuck in pause mode.
   try { localStorage.removeItem('portfolio-motion'); } catch (_) {}
   reduced.addEventListener('change', applyMotion);
   applyMotion();
@@ -104,263 +93,22 @@
     return { refresh: schedule, destroy() { controller.abort(); observers.forEach(o => o.disconnect()); cancelAnimationFrame(frame); } };
   }
 
-  const updateNavigation = () => {
-    document.querySelectorAll('.site-header nav a').forEach(link => {
-      if (pageIndex(new URL(link.href)) === current) link.setAttribute('aria-current', 'page');
-      else link.removeAttribute('aria-current');
-    });
-    document.querySelector('.section-position').textContent = `${String(current + 1).padStart(2, '0')} / 04`;
-    document.querySelector('.section-name').textContent = pages[current].name;
-    document.querySelectorAll('[data-page-step]').forEach(link => {
-      const target = current + Number(link.dataset.pageStep);
-      const disabled = target < 0 || target >= pages.length;
-      if (disabled) {
-        link.removeAttribute('href');
-        link.setAttribute('aria-disabled', 'true');
-        link.setAttribute('tabindex', '-1');
-      } else {
-        link.href = new URL(pages[target].file, base).href;
-        link.setAttribute('aria-label', `${target < current ? 'Предыдущий' : 'Следующий'} раздел: ${pages[target].name}`);
-        link.removeAttribute('aria-disabled');
-        link.removeAttribute('tabindex');
-      }
-    });
-  };
-
-  const pageCache = new Map();
-  function loadPage(url) {
-    const target = pageIndex(url);
-    const key = new URL(pages[target].file, base).href;
-    if (pageCache.has(key)) return pageCache.get(key);
-    const abort = new AbortController();
-    const timeout = setTimeout(() => abort.abort(), 8000);
-    const request = (async () => {
-      try {
-        const response = await fetch(key, { signal: abort.signal, credentials: 'same-origin' });
-        if (!response.ok) throw new Error('Page unavailable');
-        const next = new DOMParser().parseFromString(await response.text(), 'text/html');
-        if (!next.querySelector('main#main') || !next.body.classList.contains(pages[target].cls)) throw new Error('Unexpected page');
-        return next;
-      } finally { clearTimeout(timeout); }
-    })();
-    pageCache.set(key, request);
-    request.catch(() => { if (pageCache.get(key) === request) pageCache.delete(key); });
-    return request;
-  }
-
-  function scrollWithinPage(url, savedScroll = null) {
-    if (savedScroll) {
-      window.scrollTo({ left: savedScroll.x || 0, top: savedScroll.y || 0, behavior: 'instant' });
-      return;
-    }
-    let id;
-    try { id = decodeURIComponent(url.hash.slice(1)); } catch (_) { return; }
-    const anchor = document.getElementById(id);
-    if (!anchor) {
-      if (!url.hash) window.scrollTo({ left: 0, top: 0, behavior: 'instant' });
-      return;
-    }
-    const behavior = reduced.matches ? 'instant' : 'smooth';
-    if (anchor.closest('.card-track')) {
-      anchor.scrollIntoView({ behavior, block: 'nearest', inline: 'start' });
-    } else {
-      const margin = parseFloat(getComputedStyle(anchor).scrollMarginTop) || 32;
-      window.scrollTo({ left: 0, top: Math.max(0, scrollY + anchor.getBoundingClientRect().top - margin), behavior });
-    }
-    if (id === 'main') { anchor.tabIndex = -1; anchor.focus({ preventScroll: true }); }
-  }
-
-  // Animate two clipped viewport-sized surfaces, never a full-height page.
-  // Menus and controls stay outside the moving surfaces.
-  function captureViewport() {
-    const source = document.querySelector('main#main');
-    const rect = source.getBoundingClientRect();
-    const panel = document.createElement('div');
-    panel.className = `route-panel ${document.body.className}`;
-    const clone = source.cloneNode(true);
-    clone.removeAttribute('id');
-    clone.removeAttribute('tabindex');
-    const computed = getComputedStyle(source);
-    Object.assign(clone.style, {
-      position: 'absolute', top: `${rect.top}px`, left: `${rect.left}px`,
-      width: `${rect.width}px`, height: `${rect.height}px`, margin: '0',
-      display: computed.display, flexDirection: computed.flexDirection,
-      minHeight: '0', flex: 'none', overflow: computed.overflow,
-      transform: 'none', opacity: '1'
-    });
-    const animated = source.querySelectorAll('.model-layer,.signal');
-    clone.querySelectorAll('.model-layer,.signal').forEach((el, i) => {
-      el.style.transform = getComputedStyle(animated[i]).transform;
-      el.style.animation = 'none';
-    });
-    const scrollPositions = Array.from(source.querySelectorAll('.card-track')).map(el => el.scrollLeft);
-    panel.append(clone);
-    return { panel, restore() {
-      clone.querySelectorAll('.card-track').forEach((el, i) => {
-        el.style.scrollBehavior = 'auto';
-        el.scrollLeft = scrollPositions[i];
-      });
-    } };
-  }
-
-  async function slidePage(swap, direction) {
-    const layer = document.createElement('div');
-    layer.className = 'route-transition';
-    layer.setAttribute('aria-hidden', 'true');
-    layer.inert = true;
-    const old = captureViewport();
-    layer.append(old.panel);
-    document.body.append(layer);
-    old.restore();
-    let animations = [];
-    let incoming;
-    const finishEarly = () => { if (reduced.matches) animations.forEach(animation => animation.finish()); };
-    try {
-      swap();
-      if (reduced.matches) return;
-      incoming = captureViewport();
-      incoming.panel.style.transform = `translate3d(${direction * 100}%,0,0)`;
-      layer.append(incoming.panel);
-      incoming.restore();
-      // Let the browser prepare both bounded layers before starting movement.
-      await new Promise(resolve => requestAnimationFrame(resolve));
-      const timing = { duration: 440, easing: 'cubic-bezier(.32,.72,0,1)', fill: 'both' };
-      animations = [
-        old.panel.animate([
-          { transform: 'translate3d(0,0,0)' },
-          { transform: `translate3d(${-direction * 100}%,0,0)` }
-        ], timing),
-        incoming.panel.animate([
-          { transform: `translate3d(${direction * 100}%,0,0)` },
-          { transform: 'translate3d(0,0,0)' }
-        ], timing)
-      ];
-      reduced.addEventListener('change', finishEarly);
-      await Promise.all(animations.map(animation => animation.finished.catch(() => {})));
-    } finally {
-      reduced.removeEventListener('change', finishEarly);
-      layer.remove();
-      animations.forEach(animation => animation.cancel());
-    }
-  }
-
-  async function navigate(url, { pop = false, scroll = null } = {}) {
-    const target = pageIndex(url);
-    if (target < 0) return;
-    if (target === current) {
-      if (pop) scrollWithinPage(url, scroll);
-      return;
-    }
-    if (busy) return;
-    busy = true;
-    root.classList.add('page-loading');
-    let next;
-    try {
-      next = await loadPage(url);
-    } catch (_) {
-      location.assign(url.href);
-      return;
-    }
-
-    if (!pop) history.replaceState({ ...history.state, scroll: { x: scrollX, y: scrollY } }, '', location.href);
-    const swap = () => {
-      content.destroy();
-      const main = document.importNode(next.querySelector('main#main'), true);
-      main.tabIndex = -1;
-      document.querySelector('main#main').replaceWith(main);
-      document.body.className = next.body.className;
-      document.title = next.title;
-      for (const selector of ['meta[name="description"]', 'meta[property="og:title"]', 'meta[property="og:description"]']) {
-        document.querySelector(selector).content = next.querySelector(selector).content;
-      }
-      if (!pop) history.pushState({ scroll: { x: 0, y: 0 } }, '', url.href);
-      current = target;
-      updateNavigation();
-      content = initContent();
-      window.scrollTo({ left: scroll?.x || 0, top: scroll?.y || 0, behavior: 'instant' });
-      if (url.hash && !scroll) document.getElementById(decodeURIComponent(url.hash.slice(1)))?.scrollIntoView({ behavior: 'instant' });
-      main.focus({ preventScroll: true });
-      return main;
-    };
-    try {
-      if (reduced.matches) swap();
-      else await slidePage(swap, target > current ? 1 : -1);
-    } finally {
-      root.classList.remove('page-loading');
-      busy = false;
-    }
-  }
-
-  document.addEventListener('click', event => {
-    const link = event.target.closest('a[href]');
-    if (!link || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || link.target || link.hasAttribute('download')) return;
-    const url = new URL(link.href);
-    if (url.origin !== location.origin || pageIndex(url) < 0) return;
-    if (pageIndex(url) === current && url.hash) {
-      event.preventDefault();
-      if (busy) return;
-      history.replaceState({ ...history.state, scroll: { x: scrollX, y: scrollY } }, '', location.href);
-      if (url.hash !== location.hash) history.pushState({ anchor: url.hash }, '', url.href);
-      scrollWithinPage(url);
-      return;
-    }
-    event.preventDefault();
-    if (pageIndex(url) !== current) navigate(url);
-  });
-  window.addEventListener('popstate', event => {
-    if (pageIndex(new URL(location.href)) === current) { scrollWithinPage(new URL(location.href), event.state?.scroll); return; }
-    // A quick Back during a transition should still reach the browser's chosen URL.
-    if (busy) { location.reload(); return; }
-    navigate(new URL(location.href), { pop: true, scroll: event.state?.scroll });
-  });
-  document.addEventListener('keydown', event => {
-    if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
-    if (event.target.closest('a,button,input,textarea,select,summary,[contenteditable],.card-track')) return;
-    const target = current + (event.key === 'ArrowRight' ? 1 : -1);
-    if (target < 0 || target >= pages.length) return;
-    event.preventDefault();
-    navigate(new URL(pages[target].file, base));
-  });
-
-  let gesture = null;
-  document.addEventListener('touchstart', event => {
-    gesture = null;
-    if (busy || event.touches.length !== 1 || event.target.closest('.card-track,a,button,input,textarea,select,summary,[contenteditable]')) return;
-    const touch = event.touches[0];
-    // Reserve the physical edges for the browser's own Back gesture.
-    if (touch.clientX < 24 || touch.clientX > innerWidth - 24) return;
-    gesture = { x: touch.clientX, y: touch.clientY, dx: 0, dy: 0, axis: null };
-  }, { passive: true });
-  document.addEventListener('touchmove', event => {
-    if (!gesture) return;
-    if (event.touches.length !== 1) { gesture = null; return; }
-    gesture.dx = event.touches[0].clientX - gesture.x;
-    gesture.dy = event.touches[0].clientY - gesture.y;
-    if (!gesture.axis && Math.max(Math.abs(gesture.dx), Math.abs(gesture.dy)) > 12) {
-      gesture.axis = Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.4 ? 'x' : 'y';
-    }
-    if (gesture.axis === 'x' && event.cancelable) event.preventDefault();
-  }, { passive: false });
-  document.addEventListener('touchend', () => {
-    const done = gesture;
-    gesture = null;
-    if (!done || done.axis !== 'x' || Math.abs(done.dx) < 64) return;
-    const target = current + (done.dx < 0 ? 1 : -1);
-    if (target >= 0 && target < pages.length) navigate(new URL(pages[target].file, base));
-  }, { passive: true });
-  document.addEventListener('touchcancel', () => { gesture = null; }, { passive: true });
-  document.addEventListener('visibilitychange', () => {
-    document.querySelectorAll('.model-layer,.signal').forEach(el => { el.style.animationPlayState = document.hidden ? 'paused' : ''; });
-  });
-  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  // Scrolling and in-page links use the browser's native behavior.
+  // Only the service carousel owns horizontal gestures/arrow keys.
+  if ('scrollRestoration' in history) history.scrollRestoration = 'auto';
   content = initContent();
-  updateNavigation();
-  // Warm the small HTML documents after the first screen has settled.
-  // Respect reduced-data connections; failed preloads never block navigation.
-  const warmPages = () => {
-    if (navigator.connection?.saveData || /(^|-)2g$/.test(navigator.connection?.effectiveType || '')) return;
-    pages.forEach(page => loadPage(new URL(page.file, base)).catch(() => {}));
+  const bench = document.querySelector('.workbench');
+  let modelVisible = true;
+  const updateAnimationVisibility = () => {
+    bench?.querySelectorAll('.model-layer,.signal').forEach(el => {
+      el.style.animationPlayState = document.hidden || !modelVisible ? 'paused' : '';
+    });
   };
-  if ('requestIdleCallback' in window) requestIdleCallback(warmPages, { timeout: 1500 });
-  else setTimeout(warmPages, 800);
+  if (bench) {
+    new IntersectionObserver(entries => {
+      modelVisible = entries[0].isIntersecting;
+      updateAnimationVisibility();
+    }).observe(bench);
+  }
+  document.addEventListener('visibilitychange', updateAnimationVisibility);
 })();
