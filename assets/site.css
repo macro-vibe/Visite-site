@@ -178,10 +178,20 @@ main:focus{outline:none}
 .section-name{font-size:11px;color:#c2d0db}
 .section-position{font:9px monospace;color:var(--muted)}
 .page-loading{cursor:progress}
-.page-loading .section-pager{opacity:.65;pointer-events:none}
+.page-loading .section-pager{pointer-events:none}
 @media(max-width:600px){.section-pager{right:50%;transform:translateX(50%);bottom:max(12px,env(safe-area-inset-bottom));gap:8px;padding:5px}.section-current{min-width:127px;gap:12px}.site-footer,.page-home .site-footer{min-height:84px}}
 
 /* In-page steps never move sideways; route changes animate the live content only. */
 .process-map a{transition:color .2s}
 .process-map a.is-active{transform:none}
 .page-loading .model-layer,.page-loading .signal{animation-play-state:paused}
+
+/* Telegram links sit below their cards, with the same alignment in every slide. */
+.card-slide{flex:0 0 calc((100% - 40px)/2.2);min-width:0;display:flex;flex-direction:column;scroll-snap-align:start}
+.card-slide>.task-card{flex:1 1 auto;width:100%;scroll-snap-align:none}
+.card-contact{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:48px;padding:10px 3px;color:#a6cece;font-size:12px;line-height:1.5;transition:color .2s}
+.card-contact svg{width:16px;height:16px}
+.card-contact:hover{color:#d0efeb}
+@media(max-width:1100px){.card-slide{flex-basis:calc((100% - 20px)/2)}}
+@media(max-width:600px){.card-slide{flex-basis:94%;scroll-snap-stop:always}}
+@media(max-width:360px){.card-slide{flex-basis:96%}}

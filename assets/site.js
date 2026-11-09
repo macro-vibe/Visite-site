@@ -31,13 +31,14 @@
     document.querySelectorAll('[data-carousel]').forEach(carousel => {
       const track = carousel.querySelector('.card-track');
       const cards = Array.from(track.querySelectorAll('.task-card'));
+      const slides = cards.map(card => card.closest('.card-slide') || card);
       const prev = carousel.querySelector('.prev');
       const next = carousel.querySelector('.next');
       const count = carousel.querySelector('.carousel-count');
       let desired = track.scrollLeft;
       let timer;
       const max = () => track.scrollWidth - track.clientWidth;
-      const step = () => cards[1].offsetLeft - cards[0].offsetLeft;
+      const step = () => slides[1].offsetLeft - slides[0].offsetLeft;
       const update = () => {
         const index = Math.min(cards.length - 1, Math.round(track.scrollLeft / step()));
         prev.disabled = track.scrollLeft < 3;
@@ -178,7 +179,6 @@
     if (busy) return;
     busy = true;
     root.classList.add('page-loading');
-    const direction = target >= current ? 1 : -1;
     let next;
     try {
       next = await loadPage(url);
@@ -188,10 +188,11 @@
     }
 
     if (!pop) history.replaceState({ ...history.state, scroll: { x: scrollX, y: scrollY } }, '', location.href);
-    const swap = () => {
+    const swap = (hidden = false) => {
       content.destroy();
       const main = document.importNode(next.querySelector('main#main'), true);
       main.tabIndex = -1;
+      if (hidden) main.style.opacity = '0';
       document.querySelector('main#main').replaceWith(main);
       document.body.className = next.body.className;
       document.title = next.title;
@@ -205,19 +206,26 @@
       window.scrollTo({ left: scroll?.x || 0, top: scroll?.y || 0, behavior: 'instant' });
       if (url.hash && !scroll) document.getElementById(decodeURIComponent(url.hash.slice(1)))?.scrollIntoView({ behavior: 'instant' });
       main.focus({ preventScroll: true });
+      return main;
     };
     try {
-      swap();
-      if (!reduced.matches) {
-        const main = document.querySelector('main');
-        const distance = innerWidth < 600 ? 20 : 32;
-        main.style.willChange = 'transform, opacity';
-        try {
-          await main.animate([
-            { transform: `translate3d(${direction * distance}px,0,0)`, opacity: .75 },
-            { transform: 'translate3d(0,0,0)', opacity: 1 }
-          ], { duration: 200, easing: 'cubic-bezier(.2,.7,.2,1)' }).finished.catch(() => {});
-        } finally { main.style.removeProperty('will-change'); }
+      if (reduced.matches) swap();
+      else {
+        const outgoing = document.querySelector('main').animate(
+          [{ opacity: 1 }, { opacity: 0 }],
+          { duration: 140, easing: 'ease-in-out', fill: 'forwards' }
+        );
+        await outgoing.finished.catch(() => {});
+        const main = swap(!reduced.matches);
+        outgoing.cancel();
+        if (!reduced.matches) {
+          const incoming = main.animate(
+            [{ opacity: 0 }, { opacity: 1 }],
+            { duration: 280, easing: 'cubic-bezier(.2,.6,.3,1)', fill: 'both' }
+          );
+          try { await incoming.finished.catch(() => {}); }
+          finally { main.style.removeProperty('opacity'); incoming.cancel(); }
+        } else main.style.removeProperty('opacity');
       }
     } finally {
       root.classList.remove('page-loading');
