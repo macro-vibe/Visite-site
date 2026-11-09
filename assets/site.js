@@ -125,29 +125,69 @@
     });
   };
 
+  const pageCache = new Map();
+  function loadPage(url) {
+    const target = pageIndex(url);
+    const key = new URL(pages[target].file, base).href;
+    if (pageCache.has(key)) return pageCache.get(key);
+    const abort = new AbortController();
+    const timeout = setTimeout(() => abort.abort(), 8000);
+    const request = (async () => {
+      try {
+        const response = await fetch(key, { signal: abort.signal, credentials: 'same-origin' });
+        if (!response.ok) throw new Error('Page unavailable');
+        const next = new DOMParser().parseFromString(await response.text(), 'text/html');
+        if (!next.querySelector('main#main') || !next.body.classList.contains(pages[target].cls)) throw new Error('Unexpected page');
+        return next;
+      } finally { clearTimeout(timeout); }
+    })();
+    pageCache.set(key, request);
+    request.catch(() => { if (pageCache.get(key) === request) pageCache.delete(key); });
+    return request;
+  }
+
+  function scrollWithinPage(url, savedScroll = null) {
+    if (savedScroll) {
+      window.scrollTo({ left: savedScroll.x || 0, top: savedScroll.y || 0, behavior: 'instant' });
+      return;
+    }
+    let id;
+    try { id = decodeURIComponent(url.hash.slice(1)); } catch (_) { return; }
+    const anchor = document.getElementById(id);
+    if (!anchor) {
+      if (!url.hash) window.scrollTo({ left: 0, top: 0, behavior: 'instant' });
+      return;
+    }
+    const behavior = reduced.matches ? 'instant' : 'smooth';
+    if (anchor.closest('.card-track')) {
+      anchor.scrollIntoView({ behavior, block: 'nearest', inline: 'start' });
+    } else {
+      const margin = parseFloat(getComputedStyle(anchor).scrollMarginTop) || 32;
+      window.scrollTo({ left: 0, top: Math.max(0, scrollY + anchor.getBoundingClientRect().top - margin), behavior });
+    }
+    if (id === 'main') { anchor.tabIndex = -1; anchor.focus({ preventScroll: true }); }
+  }
+
   async function navigate(url, { pop = false, scroll = null } = {}) {
     const target = pageIndex(url);
-    if (target < 0 || busy) return;
-    if (target === current && !pop) return;
+    if (target < 0) return;
+    if (target === current) {
+      if (pop) scrollWithinPage(url, scroll);
+      return;
+    }
+    if (busy) return;
     busy = true;
     root.classList.add('page-loading');
     const direction = target >= current ? 1 : -1;
-    const abort = new AbortController();
-    const timeout = setTimeout(() => abort.abort(), 8000);
     let next;
     try {
-      const response = await fetch(url.href, { signal: abort.signal, credentials: 'same-origin' });
-      if (!response.ok) throw new Error('Page unavailable');
-      next = new DOMParser().parseFromString(await response.text(), 'text/html');
-      if (!next.querySelector('main#main') || !next.body.classList.contains(pages[target].cls)) throw new Error('Unexpected page');
+      next = await loadPage(url);
     } catch (_) {
-      // Keep real page URLs and ordinary navigation available when fetching fails.
       location.assign(url.href);
       return;
-    } finally { clearTimeout(timeout); }
+    }
 
     if (!pop) history.replaceState({ ...history.state, scroll: { x: scrollX, y: scrollY } }, '', location.href);
-    root.style.setProperty('--page-direction', direction);
     const swap = () => {
       content.destroy();
       const main = document.importNode(next.querySelector('main#main'), true);
@@ -167,19 +207,17 @@
       main.focus({ preventScroll: true });
     };
     try {
-      if (reduced.matches) swap();
-      else if (document.startViewTransition) {
-        await document.startViewTransition(swap).finished.catch(() => {});
-      } else {
-        await document.querySelector('main').animate([
-          { transform: 'translateX(0)', opacity: 1 },
-          { transform: `translateX(${-direction * 70}px)`, opacity: 0 }
-        ], { duration: 160, easing: 'ease-in', fill: 'forwards' }).finished;
-        swap();
-        await document.querySelector('main').animate([
-          { transform: `translateX(${direction * 90}px)`, opacity: 0 },
-          { transform: 'translateX(0)', opacity: 1 }
-        ], { duration: 260, easing: 'cubic-bezier(.22,1,.36,1)' }).finished;
+      swap();
+      if (!reduced.matches) {
+        const main = document.querySelector('main');
+        const distance = innerWidth < 600 ? 20 : 32;
+        main.style.willChange = 'transform, opacity';
+        try {
+          await main.animate([
+            { transform: `translate3d(${direction * distance}px,0,0)`, opacity: .75 },
+            { transform: 'translate3d(0,0,0)', opacity: 1 }
+          ], { duration: 200, easing: 'cubic-bezier(.2,.7,.2,1)' }).finished.catch(() => {});
+        } finally { main.style.removeProperty('will-change'); }
       }
     } finally {
       root.classList.remove('page-loading');
@@ -192,11 +230,19 @@
     if (!link || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || link.target || link.hasAttribute('download')) return;
     const url = new URL(link.href);
     if (url.origin !== location.origin || pageIndex(url) < 0) return;
-    if (pageIndex(url) === current && url.hash) return;
+    if (pageIndex(url) === current && url.hash) {
+      event.preventDefault();
+      if (busy) return;
+      history.replaceState({ ...history.state, scroll: { x: scrollX, y: scrollY } }, '', location.href);
+      if (url.hash !== location.hash) history.pushState({ anchor: url.hash }, '', url.href);
+      scrollWithinPage(url);
+      return;
+    }
     event.preventDefault();
     if (pageIndex(url) !== current) navigate(url);
   });
   window.addEventListener('popstate', event => {
+    if (pageIndex(new URL(location.href)) === current) { scrollWithinPage(new URL(location.href), event.state?.scroll); return; }
     // A quick Back during a transition should still reach the browser's chosen URL.
     if (busy) { location.reload(); return; }
     navigate(new URL(location.href), { pop: true, scroll: event.state?.scroll });
@@ -243,4 +289,12 @@
   if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
   content = initContent();
   updateNavigation();
+  // Warm the small HTML documents after the first screen has settled.
+  // Respect reduced-data connections; failed preloads never block navigation.
+  const warmPages = () => {
+    if (navigator.connection?.saveData || /(^|-)2g$/.test(navigator.connection?.effectiveType || '')) return;
+    pages.forEach(page => loadPage(new URL(page.file, base)).catch(() => {}));
+  };
+  if ('requestIdleCallback' in window) requestIdleCallback(warmPages, { timeout: 1500 });
+  else setTimeout(warmPages, 800);
 })();
