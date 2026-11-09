@@ -163,3 +163,28 @@ h1 em,.faq h2 em{color:#9ecbc9}
 .site-footer .motion-toggle{margin-inline-start:auto}
 
 .page-approach .site-footer{border-top:0}
+
+/* Section navigation stays available while long pages scroll normally. */
+body{overflow-x:clip}
+main{view-transition-name:page-content}
+main:focus{outline:none}
+.site-footer,.page-home .site-footer,.page-approach .site-footer{border:0;min-height:86px;padding:0}
+.section-pager{position:fixed;right:max(24px,calc((100vw - 1320px)/2));bottom:max(18px,env(safe-area-inset-bottom));z-index:20;display:flex;align-items:center;gap:12px;padding:7px;background:#111b24;border:1px solid #344956;border-radius:6px;box-shadow:0 6px 24px #0003}
+.section-arrow{display:flex;align-items:center;justify-content:center;width:44px;height:44px;border:1px solid #4e6675;border-radius:3px;color:var(--ink);transition:background .2s,color .2s}
+.section-arrow[data-page-step="-1"] svg{transform:rotate(180deg)}
+.section-arrow svg{width:19px;height:19px}
+.section-arrow:hover:not([aria-disabled]){background:var(--rust);color:var(--paper)}
+.section-arrow[aria-disabled]{opacity:.3;cursor:default}
+.section-current{display:flex;align-items:center;gap:16px;min-width:132px;justify-content:space-between;padding-inline:5px}
+.section-name{font-size:11px;color:#c2d0db}
+.section-position{font:9px monospace;color:var(--muted)}
+.page-loading{cursor:progress}
+.page-loading .section-pager{opacity:.65;pointer-events:none}
+::view-transition-old(root),::view-transition-new(root){animation:none}
+::view-transition-group(page-content){animation-duration:360ms;animation-timing-function:cubic-bezier(.22,1,.36,1)}
+::view-transition-old(page-content){animation:section-out 360ms cubic-bezier(.22,1,.36,1) both}
+::view-transition-new(page-content){animation:section-in 360ms cubic-bezier(.22,1,.36,1) both}
+@keyframes section-out{to{transform:translateX(calc(var(--page-direction,1)*-100vw));opacity:.25}}
+@keyframes section-in{from{transform:translateX(calc(var(--page-direction,1)*100vw));opacity:.25}to{transform:translateX(0);opacity:1}}
+@media(max-width:600px){.section-pager{right:50%;transform:translateX(50%);bottom:max(12px,env(safe-area-inset-bottom));gap:8px;padding:5px}.section-current{min-width:127px;gap:12px}.site-footer,.page-home .site-footer{min-height:84px}}
+@media(prefers-reduced-motion:reduce){::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none!important}}
